@@ -4,16 +4,18 @@ Telegram-бот отеля ВДОХ
 """
 
 import logging
+from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
     ConversationHandler,
+    ContextTypes,
     filters,
 )
 
-from config import BOT_TOKEN
+from config import BOT_TOKEN, ADMIN_IDS
 from handlers.menu import start_handler, menu_callback_handler
 from handlers.booking import (
     booking_start,
@@ -47,7 +49,21 @@ async def post_init(application: Application) -> None:
     if knowledge_base.is_loaded():
         logger.info("База знаний успешно загружена")
     else:
-        logger.warning("База знаний не загружена — бот будет отвечать 'не знаю'")
+        logger.warning("База знаний не загружена")
+
+
+async def debug_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Только для админов — показывает первые 1000 символов базы знаний."""
+    user_id = update.effective_user.id
+    if ADMIN_IDS and user_id not in ADMIN_IDS:
+        return
+
+    knowledge_base.refresh()
+    ctx = knowledge_base.get_context_for_ai()
+    loaded = knowledge_base.is_loaded()
+
+    msg = f"Загружена: {loaded}\nДлина контекста: {len(ctx)} символов\n\n{ctx[:1000]}"
+    await update.message.reply_text(msg[:4000])
 
 
 def main() -> None:
@@ -58,7 +74,6 @@ def main() -> None:
         .build()
     )
 
-    # Сценарий бронирования
     booking_conv = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(booking_start, pattern="^menu_book$"),
@@ -83,6 +98,7 @@ def main() -> None:
     )
 
     app.add_handler(CommandHandler("start", start_handler))
+    app.add_handler(CommandHandler("debug", debug_handler))
     app.add_handler(booking_conv)
     app.add_handler(CallbackQueryHandler(menu_callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_message_handler))
@@ -90,7 +106,7 @@ def main() -> None:
     logger.info("Бот запущен")
     app.run_polling(
         allowed_updates=["message", "callback_query"],
-        drop_pending_updates=True,   # сбрасываем накопившиеся апдейты при старте
+        drop_pending_updates=True,
     )
 
 
