@@ -5,7 +5,9 @@
   - запись заявок, вопросов без ответа, статистики
 """
 
+import json
 import logging
+import os
 from datetime import datetime
 from typing import Any
 
@@ -25,12 +27,24 @@ _client: gspread.Client | None = None
 _spreadsheet: gspread.Spreadsheet | None = None
 
 
+def _get_credentials() -> Credentials:
+    """
+    Читает credentials из переменной окружения GOOGLE_CREDENTIALS_JSON
+    (для Railway) или из файла google_credentials.json (для локального запуска).
+    """
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+    if creds_json:
+        info = json.loads(creds_json)
+        return Credentials.from_service_account_info(info, scopes=SCOPES)
+    return Credentials.from_service_account_file(
+        GOOGLE_CREDENTIALS_FILE, scopes=SCOPES
+    )
+
+
 def _get_spreadsheet() -> gspread.Spreadsheet:
     global _client, _spreadsheet
     if _spreadsheet is None:
-        creds = Credentials.from_service_account_file(
-            GOOGLE_CREDENTIALS_FILE, scopes=SCOPES
-        )
+        creds = _get_credentials()
         _client = gspread.authorize(creds)
         _spreadsheet = _client.open_by_key(SPREADSHEET_ID)
     return _spreadsheet
@@ -112,10 +126,9 @@ def increment_stat(field: str) -> None:
         today = datetime.now().strftime("%Y-%m-%d")
         records = ws.get_all_records()
 
-        # Ищем строку за сегодня
         for i, rec in enumerate(records):
             if str(rec.get("дата")) == today:
-                row_num = i + 2  # +1 заголовок, +1 индексация с 1
+                row_num = i + 2
                 headers = ws.row_values(1)
                 if field in headers:
                     col = headers.index(field) + 1
@@ -123,7 +136,6 @@ def increment_stat(field: str) -> None:
                     ws.update_cell(row_num, col, int(current) + 1)
                 return
 
-        # Строки за сегодня нет — создаём новую
         headers = ws.row_values(1)
         new_row = [today] + ["0"] * (len(headers) - 1)
         if field in headers:
