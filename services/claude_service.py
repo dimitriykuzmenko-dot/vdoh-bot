@@ -33,7 +33,6 @@ MAX_HISTORY = 10
 
 
 def _system_prompt() -> str:
-    # Если база не загружена — загружаем прямо сейчас
     if not knowledge_base.is_loaded():
         logger.info("База знаний не загружена, загружаем...")
         knowledge_base.refresh()
