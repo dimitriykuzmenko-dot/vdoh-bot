@@ -109,5 +109,6 @@ def main() -> None:
         drop_pending_updates=True,
     )
 
+
 if __name__ == "__main__":
     main()
