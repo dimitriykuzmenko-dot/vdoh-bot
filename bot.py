@@ -3,7 +3,6 @@ Telegram-бот отеля ВДОХ
 Точка входа — запускать именно этот файл: python bot.py
 """
 
-import asyncio
 import logging
 from telegram.ext import (
     Application,
@@ -32,6 +31,7 @@ from handlers.booking import (
     BOOKING_STATES,
 )
 from handlers.ai_chat import ai_message_handler
+from services import knowledge_base
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -40,10 +40,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
-    app = Application.builder().token(BOT_TOKEN).build()
+async def post_init(application: Application) -> None:
+    """Загружаем базу знаний сразу после старта бота."""
+    logger.info("Загружаем базу знаний из Google Sheets...")
+    knowledge_base.refresh()
+    if knowledge_base.is_loaded():
+        logger.info("База знаний успешно загружена")
+    else:
+        logger.warning("База знаний не загружена — бот будет отвечать 'не знаю'")
 
-    # Сценарий бронирования (ConversationHandler — пошаговый диалог)
+
+def main() -> None:
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
+
+    # Сценарий бронирования
     booking_conv = ConversationHandler(
         entry_points=[
             CallbackQueryHandler(booking_start, pattern="^menu_book$"),
@@ -64,16 +79,19 @@ def main() -> None:
             CommandHandler("cancel", booking_cancel),
             CommandHandler("start", booking_cancel),
         ],
+        per_message=False,
     )
 
-    # Регистрируем хендлеры
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(booking_conv)
     app.add_handler(CallbackQueryHandler(menu_callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ai_message_handler))
 
     logger.info("Бот запущен")
-    app.run_polling(allowed_updates=["message", "callback_query"])
+    app.run_polling(
+        allowed_updates=["message", "callback_query"],
+        drop_pending_updates=True,   # сбрасываем накопившиеся апдейты при старте
+    )
 
 
 if __name__ == "__main__":
