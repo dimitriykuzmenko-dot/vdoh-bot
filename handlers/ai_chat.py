@@ -34,5 +34,6 @@ async def ai_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     increment_stat("диалогов")
     if needs_escalation:
         append_unanswered(user_id, text)
+        
         increment_stat("вопросов_без_ответа")
         logger.info("Вопрос без ответа от %s: %s", user_id, text)
