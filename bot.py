@@ -43,7 +43,6 @@ logger = logging.getLogger(__name__)
 
 
 async def post_init(application: Application) -> None:
-    """Загружаем базу знаний сразу после старта бота."""
     logger.info("Загружаем базу знаний из Google Sheets...")
     knowledge_base.refresh()
     if knowledge_base.is_loaded():
@@ -53,16 +52,12 @@ async def post_init(application: Application) -> None:
 
 
 async def debug_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Только для админов — показывает первые 1000 символов базы знаний."""
     user_id = update.effective_user.id
     if ADMIN_IDS and user_id not in ADMIN_IDS:
         return
-
     knowledge_base.refresh()
     ctx = knowledge_base.get_context_for_ai()
-    loaded = knowledge_base.is_loaded()
-
-    msg = f"Загружена: {loaded}\nДлина контекста: {len(ctx)} символов\n\n{ctx[:1000]}"
+    msg = f"Загружена: {knowledge_base.is_loaded()}\nДлина: {len(ctx)} символов\n\n{ctx[:1000]}"
     await update.message.reply_text(msg[:4000])
 
 
@@ -75,9 +70,7 @@ def main() -> None:
     )
 
     booking_conv = ConversationHandler(
-        entry_points=[
-            CallbackQueryHandler(booking_start, pattern="^menu_book$"),
-        ],
+        entry_points=[CallbackQueryHandler(booking_start, pattern="^menu_book$")],
         states={
             BOOKING_STATES["NAME"]:      [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_name)],
             BOOKING_STATES["PHONE"]:     [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_phone)],
